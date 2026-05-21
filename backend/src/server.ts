@@ -13,7 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // CORS setup
-// In production, configure FRONTEND_URL as needed.
+// In production, set FRONTEND_URL to your deployed frontend URL.
+// We also allow Vercel preview domains so deploy previews can call the API.
 const allowedOrigins = [
   'http://localhost:5173', // Vite default port
   'http://localhost:3000',
@@ -24,7 +25,9 @@ app.use(cors({
   origin: (origin, callback) => {
     // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+    const isLocal = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+    const isVercel = /^https:\/\/.+\.vercel\.app$/.test(origin);
+    if (allowedOrigins.length === 0 || allowedOrigins.indexOf(origin) !== -1 || isLocal || isVercel) {
       return callback(null, true);
     }
     return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);

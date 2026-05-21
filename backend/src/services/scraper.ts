@@ -240,7 +240,7 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
         followers: Math.ceil(avgEngagementPerPost * 5) || 1, // At least 1 to avoid division by zero
         following: 0,
         total_posts: posts.length,
-        avatar_url: null, // Not available from posts-scraper
+        avatar_url: undefined, // Not available from posts-scraper
         display_name: pageNameFromPosts,
         posts,
         raw: { pageName: pageNameFromPosts, totalEngagement: totalLikes + totalComments + totalShares },

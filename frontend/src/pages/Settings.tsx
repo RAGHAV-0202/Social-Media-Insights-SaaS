@@ -510,21 +510,57 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
-                <div className="pt-6 mt-6 border-t border-border/60">
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Theme</label>
-                  <p className="text-xs text-muted-foreground mb-3">Choose the app theme for this browser (can be persisted to workspace later).</p>
-                  <div className="flex items-center gap-3">
-                    {THEME_LIST.map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => setTheme(t.id)}
-                        className={`w-20 h-12 rounded-lg border border-border/30 flex items-center justify-center text-xs font-medium ${theme === t.id ? 'ring-2 ring-primary' : ''}`}
-                        title={t.label}
-                        style={{ background: t.preview.startsWith('linear-gradient') ? undefined : t.preview }}
-                      >
-                        {t.label.split(' ')[0]}
-                      </button>
-                    ))}
+                <div className="pt-6 mt-6 border-t border-border/60 space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground mb-2 block">Theme gallery</label>
+                    <p className="text-xs text-muted-foreground">Pick a visual style. Each card includes a preview slot so you can drop in screenshot images later.</p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {THEME_LIST.map((t) => {
+                      const isGradient = t.preview.startsWith('linear-gradient');
+                      const isAurora = t.id === 'theme-aurora';
+                      const isDark = t.id === 'dark';
+
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTheme(t.id)}
+                          className={`group text-left rounded-2xl border p-4 transition-all duration-200 ${theme === t.id ? 'border-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.25),0_20px_40px_-24px_hsl(var(--primary)/0.45)]' : 'border-border/60 hover:border-border hover:shadow-[var(--shadow-card)]'}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{t.label}</p>
+                              <p className="text-xs text-muted-foreground">{t.id === 'theme-saas-ivory' ? 'Claude-style warm paper' : t.id === 'theme-indigo' ? 'Cool blue and purple' : t.id === 'theme-aurora' ? 'Soft gradient light theme' : 'Low-light navy palette'}</p>
+                            </div>
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${theme === t.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                              {theme === t.id ? 'Selected' : 'Preview'}
+                            </span>
+                          </div>
+
+                          <div
+                            className={`mt-4 relative overflow-hidden rounded-xl border border-dashed ${isDark ? 'border-white/10 bg-[#0B1221]' : 'border-border/60 bg-card'}`}
+                            style={{ backgroundImage: isGradient ? t.preview : undefined, backgroundColor: !isGradient ? t.preview : undefined }}
+                          >
+                            <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(circle_at_top_left,rgba(91,140,255,0.14),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.16),transparent_45%)]' : isAurora ? 'bg-[radial-gradient(circle_at_top_left,rgba(91,140,255,0.12),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(232,121,249,0.12),transparent_45%)]' : 'bg-[radial-gradient(circle_at_top_right,rgba(204,120,92,0.08),transparent_45%)]'} pointer-events-none`} />
+                            <div className="relative min-h-32 p-4 flex flex-col justify-between">
+                              <div className="space-y-2">
+                                <div className="h-3 w-20 rounded-full bg-foreground/10" />
+                                <div className="h-6 w-3/5 rounded-lg bg-foreground/10" />
+                                <div className="h-2 w-full rounded-full bg-foreground/10" />
+                                <div className="h-2 w-4/5 rounded-full bg-foreground/10" />
+                              </div>
+                              <div className="mt-4 flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-foreground/10" />
+                                <div className="h-8 flex-1 rounded-full bg-foreground/10" />
+                                <div className="h-8 w-14 rounded-full bg-foreground/10" />
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

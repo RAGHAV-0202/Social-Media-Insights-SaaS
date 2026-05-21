@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/context/ThemeContext';
 import { Loader2, ArrowRight, Check, Sparkles, X } from 'lucide-react';
 import { PLATFORMS } from '@/lib/social';
 
 export default function Onboarding() {
   const { user, workspace, token } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -155,7 +157,7 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="theme-saas-ivory min-h-screen flex items-center justify-center bg-background bg-paper-grain p-4 relative overflow-hidden text-foreground">
+    <div className={`${theme} min-h-screen flex items-center justify-center bg-background bg-paper-grain p-4 relative overflow-hidden text-foreground`}>
       {/* Dynamic grain/blur effect background */}
       <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[10%] left-[10%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px] pointer-events-none" />

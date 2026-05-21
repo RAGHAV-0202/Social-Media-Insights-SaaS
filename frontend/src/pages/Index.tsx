@@ -15,10 +15,13 @@ import {
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function Index() {
+  const { theme } = useTheme();
+
   return (
-    <div className="theme-saas-ivory min-h-screen bg-background bg-paper-grain">
+    <div className={`${theme} min-h-screen bg-background bg-paper-grain`}>
       <Navbar />
 
       <main>

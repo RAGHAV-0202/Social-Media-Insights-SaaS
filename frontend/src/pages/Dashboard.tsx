@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +99,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { token, workspace, logout } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -728,7 +730,7 @@ export default function Dashboard() {
 
   return (
     <DataRefreshProvider nonce={dataNonce}>
-      <div className="theme-saas-ivory min-h-screen bg-background bg-paper-grain text-foreground flex flex-col md:flex-row">
+      <div className={`${theme} min-h-screen bg-background bg-paper-grain text-foreground flex flex-col md:flex-row`}>
         
         {/* Desktop Sidebar Navigation */}
         <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-card border-r border-border/60 z-30 shadow-sm">
@@ -1386,7 +1388,7 @@ export default function Dashboard() {
       <div 
         id="pdf-report" 
         style={{ position: 'absolute', left: '-9999px', top: '0', width: '1200px', pointerEvents: 'none' }}
-        className="bg-[#F5F0E8] p-12 space-y-12 text-[#1C1A17] theme-saas-ivory"
+        className={`${theme} bg-[#F5F0E8] p-12 space-y-12 text-[#1C1A17]`}
       >
         <header className="border-b border-[#CC785C]/30 pb-6 flex justify-between items-end">
           <div>

@@ -336,7 +336,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="theme-saas-ivory min-h-screen bg-background bg-paper-grain p-6 md:p-12 relative overflow-hidden text-foreground">
+    <div className={`${theme} min-h-screen bg-background bg-paper-grain p-6 md:p-12 relative overflow-hidden text-foreground`}>
       <div className="max-w-4xl mx-auto relative z-10 space-y-8 animate-fade-in-up">
         
         <div className="flex items-center justify-between">

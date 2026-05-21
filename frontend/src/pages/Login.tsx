@@ -7,6 +7,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
@@ -18,6 +19,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function Login() {
   const { login, token, isLoading } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export default function Login() {
   };
 
   return (
-    <div className="theme-saas-ivory flex min-h-screen flex-col bg-background bg-paper-grain">
+    <div className={`${theme} flex min-h-screen flex-col bg-background bg-paper-grain`}>
       <Navbar />
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-[420px]">

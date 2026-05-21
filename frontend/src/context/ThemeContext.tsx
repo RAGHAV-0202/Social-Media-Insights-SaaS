@@ -27,7 +27,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     root.classList.remove(...themeClasses);
     // add selected theme class
     root.classList.add(theme);
+    root.dataset.theme = theme;
     localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const syncTheme = () => {
+      const stored = localStorage.getItem(THEME_KEY) as ThemeId | null;
+      if (stored && stored !== theme) {
+        setThemeState(stored);
+      }
+    };
+
+    window.addEventListener('storage', syncTheme);
+    return () => window.removeEventListener('storage', syncTheme);
   }, [theme]);
 
   const setTheme = (id: ThemeId) => setThemeState(id);

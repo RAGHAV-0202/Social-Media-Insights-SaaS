@@ -1,0 +1,1 @@
+SELECT cron.unschedule('refresh-social-every-6h');

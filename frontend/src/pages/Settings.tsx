@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme, THEME_LIST } from '@/context/ThemeContext';
 import { Loader2, ArrowLeft, LogOut, Trash2, Pencil, Check, X, RefreshCw } from 'lucide-react';
 import { PLATFORMS } from '@/lib/social';
 
 export default function Settings() {
   const { user, workspace, token, logout, setWorkspace, isLoading } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -507,6 +509,23 @@ export default function Settings() {
                       </Button>
                     </div>
                   )}
+                </div>
+                <div className="pt-6 mt-6 border-t border-border/60">
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Theme</label>
+                  <p className="text-xs text-muted-foreground mb-3">Choose the app theme for this browser (can be persisted to workspace later).</p>
+                  <div className="flex items-center gap-3">
+                    {THEME_LIST.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTheme(t.id)}
+                        className={`w-20 h-12 rounded-lg border border-border/30 flex items-center justify-center text-xs font-medium ${theme === t.id ? 'ring-2 ring-primary' : ''}`}
+                        title={t.label}
+                        style={{ background: t.preview.startsWith('linear-gradient') ? undefined : t.preview }}
+                      >
+                        {t.label.split(' ')[0]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Ingestion & Frequency settings (premium, unlocked by user key) */}

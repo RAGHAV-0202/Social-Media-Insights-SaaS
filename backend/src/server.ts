@@ -47,9 +47,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// Start Server
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+const startServer = async () => {
   await connectDB();
-  initCronJobs();
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    initCronJobs();
+  });
+};
+
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });

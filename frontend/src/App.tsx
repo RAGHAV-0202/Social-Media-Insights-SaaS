@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +15,25 @@ import { AuthProvider } from "./context/AuthContext.tsx";
 
 const queryClient = new QueryClient();
 
+const titles: Record<string, string> = {
+  "/": "Insights — Home",
+  "/login": "Insights — Login",
+  "/register": "Insights — Create Account",
+  "/onboarding": "Insights — Connect Platforms",
+  "/dashboard": "Insights — Dashboard",
+  "/settings": "Insights — Settings",
+};
+
+function PageTitleManager() {
+  const location = useLocation();
+
+  useEffect(() => {
+    document.title = titles[location.pathname] || "Insights — Social Dashboard";
+  }, [location.pathname]);
+
+  return null;
+}
+
 const App = () => {
   return (
 
@@ -23,6 +43,7 @@ const App = () => {
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <PageTitleManager />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />

@@ -15,6 +15,7 @@ import {
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 import { Button } from "@/components/ui/button";
+import OverviewAnalytics from '@/components/OverviewAnalytics';
 import { useTheme } from "@/context/ThemeContext";
 
 export default function Index() {
@@ -197,6 +198,9 @@ export default function Index() {
             </div>
           </div>
         </section>
+
+        {/* ───────────── Analytics preview (Overview) ───────────── */}
+        <OverviewAnalytics />
 
         {/* ───────────── Closing CTA ───────────── */}
         <section className="px-6 pb-28">

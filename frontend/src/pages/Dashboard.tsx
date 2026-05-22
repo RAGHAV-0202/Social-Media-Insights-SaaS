@@ -119,6 +119,7 @@ export default function Dashboard() {
   const [platformFilter, setPlatformFilter] = useState<PlatformId | "all">("all");
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   const [globalSort, setGlobalSort] = useState<GlobalSort>("posted_at:desc");
+  const [showAllTopPosts, setShowAllTopPosts] = useState(false);
 
   const ALL_METRICS: { key: MetricKey; label: string; icon: any; iconClassName?: string }[] = [
     { key: "likes", label: "Likes", icon: Heart, iconClassName: "text-like fill-like" },
@@ -336,6 +337,24 @@ export default function Dashboard() {
   const totalInteractions = rawEngagementInRange + followersGained;
   const prevInteractions = rawEngagementInPrev;
 
+  // Platform-level follower deltas (for Audience growth small cards)
+  const followerDeltas = useMemo(() => {
+    const byPlat = new Map();
+    for (const p of filteredProfiles) {
+      const plat = p.platform;
+      const cur = byPlat.get(plat) || { first: 0, last: 0 };
+      cur.first += (followersAtFrom.get(p.id) ?? 0);
+      cur.last += (followersAtTo.get(p.id) ?? 0);
+      byPlat.set(plat, cur);
+    }
+    return PLATFORMS.map((pl) => {
+      const v = byPlat.get(pl.id) || { first: 0, last: 0 };
+      const delta = v.last - v.first;
+      const pct = v.first > 0 ? delta / v.first : 0;
+      return { platform: pl.label, color: pl.color, current: v.last, delta, pct };
+    }).filter((d) => d.current > 0);
+  }, [filteredProfiles, followersAtFrom, followersAtTo]);
+
   const erValues = postsInRange
     .map((p) => {
       const eng = engOf(p);
@@ -391,6 +410,7 @@ export default function Dashboard() {
       .sort((a, b) => (b.views || 0) - (a.views || 0))
       .slice(0, 12);
   }, [postsInRange]);
+  const visibleTopPosts = showAllTopPosts ? topPosts : topPosts.slice(0, 4);
 
   const summaryStats = useMemo<WeeklySummaryStats>(() => {
     const days = Math.max(1, differenceInCalendarDays(to, from) + 1);
@@ -1051,6 +1071,35 @@ export default function Dashboard() {
                       <GeminiInsightsPanel stats={summaryStats} />
                     </Reveal>
 
+                    {/* Audience growth (platform follower deltas) */}
+                    <section className="space-y-3">
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <h2 className="text-2xl font-semibold font-serif-display">Audience growth</h2>
+                          <p className="text-sm text-muted-foreground">Net follower change in selected range, per platform</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+                        {followerDeltas.map((d) => (
+                          <Card key={d.platform} className="p-5 shadow-[var(--shadow-card)]">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wider">{d.platform}</div>
+                            <div className="text-2xl font-semibold mt-2 font-serif-display">{formatNumber(d.current)}</div>
+                            <div className={cn(
+                              "text-xs mt-2 font-medium",
+                              d.delta > 0 ? "text-emerald-600" : d.delta < 0 ? "text-rose-600" : "text-muted-foreground",
+                            )}>
+                              {d.delta > 0 ? "+" : ""}{formatNumber(d.delta)} ({(d.pct * 100).toFixed(2)}%)
+                            </div>
+                          </Card>
+                        ))}
+                        {followerDeltas.length === 0 && (
+                          <Card className="p-4 col-span-full text-sm text-muted-foreground text-center">
+                            Need at least two snapshots in the range to compute growth.
+                          </Card>
+                        )}
+                      </div>
+                    </section>
+
                     {/* KPI Bento Grid */}
                     <Reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                       {metrics.views && (
@@ -1083,12 +1132,7 @@ export default function Dashboard() {
                       </div>
                     </Reveal>
 
-                    {/* Analytics sections: Audience growth, engagement at a glance */}
-                    <Reveal>
-                      <Suspense fallback={<ChartSkeleton />}> 
-                        <AnalyticsSections posts={postsInRange} profiles={filteredProfiles} snapshots={snapshots} from={from} to={to} />
-                      </Suspense>
-                    </Reveal>
+                    {/* Analytics sections: Audience growth, engagement at a glance (kept in Content tab slice to avoid duplication) */}
 
                   </div>
                 )}
@@ -1273,13 +1317,26 @@ export default function Dashboard() {
 
                     {/* Top Performing Highlights */}
                     <Reveal as="section">
-                      <SectionHeader
-                        eyebrow="Highlights"
-                        title="Top performing content"
-                        description="The highest-engagement posts across every connected platform."
-                      />
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <SectionHeader
+                          eyebrow="Highlights"
+                          title="Top performing content"
+                          description="The highest-engagement posts across every connected platform."
+                        />
+                        {topPosts.length > 4 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => setShowAllTopPosts((value) => !value)}
+                          >
+                            {showAllTopPosts ? "View less" : "View more"}
+                          </Button>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                        {topPosts.map((post) => {
+                        {visibleTopPosts.map((post) => {
                           const profile = profiles.find((p: any) => p.id === post.profile_id);
                           const meta = profile ? platformMeta[profile.platform] : null;
                           const Icon = meta?.icon;
@@ -1304,16 +1361,17 @@ export default function Dashboard() {
                       </div>
                     </Reveal>
 
-                    {/* Media type and Hashtag lists */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Media type and Hashtag lists — single-column stacked layout */}
+                    <div className="space-y-8">
                       <Reveal>
                         <Suspense fallback={<ChartSkeleton />}>
                           <ContentTypeBreakdown posts={postsInRange} />
                         </Suspense>
                       </Reveal>
+
                       <Reveal>
                         <Suspense fallback={<ChartSkeleton />}>
-                          <AnalyticsSections posts={postsInRange} profiles={filteredProfiles} snapshots={snapshots} from={from} to={to} slice="hashtags-leaderboard" />
+                          <AnalyticsSections posts={postsInRange} profiles={filteredProfiles} snapshots={snapshots} from={from} to={to} />
                         </Suspense>
                       </Reveal>
                     </div>

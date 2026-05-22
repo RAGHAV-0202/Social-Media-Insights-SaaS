@@ -30,5 +30,7 @@ export const formatPercent = (n: number | null | undefined, digits = 2) =>
 export const proxyImage = (url: string | null | undefined): string | undefined => {
   if (!url) return undefined;
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
-  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=600&output=webp&we`;
+  if (/facebook\.com|fbcdn\.net/i.test(url)) return url;
+  const cleanedUrl = url.replace(/^https?:\/\//, "");
+  return `https://images.weserv.nl/?url=${encodeURIComponent(cleanedUrl)}&w=600&output=webp`;
 };

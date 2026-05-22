@@ -33,16 +33,19 @@ Best posting slot: ${stats.bestSlot ?? "n/a"}
 Top hashtag: ${stats.topHashtag ?? "n/a"}`;
 
   const models = [
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "liquid/lfm-2.5-1.2b-instruct:free",
+    "arcee-ai/trinity-large-thinking:free",
+    "openai/gpt-oss-20b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "openai/gpt-oss-120b:free",
-    "openai/gpt-oss-20b:free"
   ];
 
   let lastError = null;
 
   for (const model of models) {
     try {
-      console.log(`[AI Summary] Attempting generation with model: ${model}`);
+      // console.log(`[AI Summary] Attempting generation with model: ${model}`);
       const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -72,7 +75,10 @@ Top hashtag: ${stats.topHashtag ?? "n/a"}`;
       }
 
       const data = await resp.json() as any;
+      // console.log(data)
       const summary = data?.choices?.[0]?.message?.content ?? "";
+
+      console.log(summary)
       
       if (summary) {
         console.log(`[AI Summary] Successfully generated with ${model}`);

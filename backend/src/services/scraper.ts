@@ -12,7 +12,12 @@ const ACTORS: Record<string, string | string[]> = {
   instagram: "apify/instagram-profile-scraper",
   tiktok:    "clockworks/tiktok-scraper",
   youtube:   "streamers/youtube-channel-scraper",
-  twitter:   "apidojo/twitter-user-scraper",
+  twitter: [
+    "scraper_one/x-profile-posts-scraper",
+    "parseforge/x-com-scraper",
+    "apidojo/twitter-scraper-lite",
+    "apidojo/tweet-scraper",
+  ],
   linkedin: [
     "apimaestro/linkedin-profile-posts",
     "vulnv/linkedin-profile-scraper",
@@ -74,6 +79,9 @@ export function cleanHandleAndUrl(rawInput: string, platform: string) {
     case 'facebook':
       cleanUrl = `https://facebook.com/${cleanInput}`;
       break;
+    case 'linkedin':
+      cleanUrl = `https://www.linkedin.com/in/${cleanInput}`;
+      break;
     default:
       cleanUrl = cleanInput;
   }
@@ -85,7 +93,7 @@ export function cleanHandleAndUrl(rawInput: string, platform: string) {
 
   }
 
-async function runActor(actor: string | string[], input: unknown, token: string, timeoutMs = 120_000): Promise<any[]> {
+async function runActor(actor: string | string[], input: any, token: string, timeoutMs = 120_000): Promise<any[]> {
   // If actor is an array, try each slug until one succeeds
   const actorCandidates = Array.isArray(actor) ? actor : [actor];
   let lastErr: any = null;
@@ -93,17 +101,56 @@ async function runActor(actor: string | string[], input: unknown, token: string,
     try {
       const safeActor = a.replace('/', '~');
       const url = `https://api.apify.com/v2/acts/${safeActor}/run-sync-get-dataset-items?token=${token}&timeout=${Math.floor(timeoutMs/1000)}`;
+      
+      // Dynamically clean inputs for specific actors to prevent parameter conflicts
+      let prunedInput: any = {};
+      if (a === "scraper_one/x-profile-posts-scraper") {
+        prunedInput = {
+          profileUrls: input.profileUrls,
+          resultsLimit: input.resultsLimit ?? input.maxItems ?? 25,
+        };
+      } else if (a === "parseforge/x-com-scraper") {
+        const username = input.usernames?.[0] ?? (input.profileUrls?.[0] ? input.profileUrls[0].split('/').pop() : "");
+        prunedInput = {
+          usernames: username ? [username] : [],
+          maxItems: input.maxItems ?? input.resultsLimit ?? 25,
+        };
+      } else if (a === "apidojo/twitter-scraper-lite" || a === "apidojo/tweet-scraper") {
+        prunedInput = {
+          startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
+          tweetsDesired: input.tweetsDesired ?? input.resultsLimit ?? 25,
+        };
+      } else if (a === "apify/facebook-posts-scraper") {
+        prunedInput = {
+          startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
+          resultsLimit: input.resultsLimit ?? 25,
+        };
+      } else if (a === "apify/facebook-pages-scraper") {
+        prunedInput = {
+          startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
+        };
+      } else {
+        prunedInput = input;
+      }
+
+      console.log(`[runActor] Attempting actor ${a} with input:\n`, JSON.stringify(prunedInput, null, 2));
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify(prunedInput),
       });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Apify ${a} ${res.status}: ${text.slice(0, 500)}`);
       }
       const data = await res.json() as any[];
-      // Return immediately on success
+      console.log(`[runActor] Actor ${a} finished. Items returned: ${data?.length || 0}`);
+      
+      const isDemo = data && data.length > 0 && data.every((i: any) => i.demo);
+      if (!data || data.length === 0 || isDemo) {
+        throw new Error(`Actor returned empty or demo dataset (${data?.length || 0} items)`);
+      }
+      
       return data;
     } catch (err) {
       // keep trying other candidates
@@ -189,30 +236,41 @@ type Normalized = {
 async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Normalized> {
   switch (p.platform) {
     case "facebook": {
+      // 1. Run posts scraper to get post history
       const items = await runActor(ACTORS.facebook, {
         startUrls: [{ url: p.profile_url }],
         urls: [p.profile_url],
         resultsLimit: limit,
-      }, token);
-      // Debug: log structure to help diagnose field names
+      }, token, 180_000);
+      
+      // Handle both post items and page metadata
+      const rawPosts = Array.isArray(items) ? items.filter((i: any) => i.text || i.message || i.story || i.postText || i.postId) : [];
+
+      // 2. Fetch page-level metadata using pages-scraper to enrich profile details (followers count)
+      let pageEnrich: any = null;
       try {
-        if (items && items.length > 0) {
-          console.log(`[facebook] returned ${items.length} items; pageName: ${items[0].pageName}, sample engagement:`, { 
-            likes: items[0].likes, 
-            comments: items[0].comments, 
-            shares: items[0].shares,
-          });
+        const pageActors = [
+          "apify/facebook-pages-scraper",
+          "apidojo/facebook-scraper"
+        ];
+        const pageItems = await runActor(pageActors, {
+          startUrls: [{ url: p.profile_url }],
+          urls: [p.profile_url],
+        }, token, 60_000);
+        pageEnrich = Array.isArray(pageItems) ? pageItems.find((i: any) => (i.likes != null || i.followers != null || i.categories != null) && !i.postId && !i.text && !i.story) ?? pageItems[0] : pageItems;
+        if (pageEnrich) {
+          console.log('[facebook] page enrich returned keys:', Object.keys(pageEnrich).slice(0, 20));
         }
       } catch (e) {
-        // ignore
+        console.warn('[facebook] page enrichment failed:', (e as Error).message || e);
       }
-      // Handle both post items and page metadata
-      // Facebook posts-scraper returns post items directly (each has pageName, user, postId, text, etc.)
-      // It does NOT return page profile data (followers, avatar), so we extract from posts
-      const rawPosts = Array.isArray(items) ? items.filter((i: any) => i.text || i.message || i.story) : [];
-      
-      // Extract page info from posts (all posts should have the same pageName)
-      const pageNameFromPosts = rawPosts[0]?.pageName ?? rawPosts[0]?.user ?? p.handle;
+
+      // Try to extract page-level metadata from pageEnrich first, then fallback to posts or fallback estimate
+      const pageItem = pageEnrich ?? items.find((i: any) => (i.likes != null || i.followers != null || i.categories != null) && !i.postId && !i.text && !i.story) ?? {};
+      const pageFollowers = num(pageItem.followers ?? pageItem.followersCount ?? pageItem.likes ?? pageItem.likeCount ?? pageItem.fan_count);
+
+      // Extract page info from posts or page metadata
+      const pageNameFromPosts = rawPosts[0]?.pageName ?? rawPosts[0]?.user ?? pageItem.title ?? pageItem.name ?? pageItem.pageName ?? p.handle;
       
       // Calculate aggregate engagement from posts (use as proxy for followers-based metrics)
       const totalLikes = rawPosts.reduce((sum: number, post: any) => sum + num(post.likes ?? post.reactionLikeCount ?? 0), 0);
@@ -224,8 +282,8 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
         external_id: String(post.postId ?? post.id ?? post.url ?? Math.random().toString()),
         posted_at: safeDate(post.time ?? post.timestamp ?? post.date ?? post.created_time),
         url: post.url ?? post.postUrl ?? post.link ?? null,
-        thumbnail_url: post.media?.[0]?.src ?? post.media?.[0]?.url ?? post.picture ?? post.media ?? null,
-        caption: post.text ?? post.message ?? post.story ?? "",
+        thumbnail_url: post.media?.[0]?.src ?? post.media?.[0]?.url ?? post.picture ?? null,
+        caption: post.text ?? post.message ?? post.story ?? post.postText ?? "",
         media_type: post.isVideo ? "video" : (post.media ? "image" : "text"),
         likes: num(post.likes ?? post.reactionLikeCount ?? 0),
         comments: num(post.comments ?? 0),
@@ -234,16 +292,19 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
         raw: post,
       }));
       
+      // Use page-level followers if available, otherwise estimate from engagement
+      const followers = pageFollowers > 0
+        ? pageFollowers
+        : (rawPosts.length > 0 ? Math.ceil(avgEngagementPerPost * 5) : 0);
+
       return {
-        // Facebook posts-scraper doesn't return follower data
-        // Estimate followers as: avg_engagement_per_post * 5 (rough multiplier for reach)
-        followers: Math.ceil(avgEngagementPerPost * 5) || 1, // At least 1 to avoid division by zero
-        following: 0,
+        followers,
+        following: num(pageItem.followings ?? pageItem.followingCount ?? pageItem.following ?? 0),
         total_posts: posts.length,
-        avatar_url: undefined, // Not available from posts-scraper
-        display_name: pageNameFromPosts,
+        avatar_url: pageItem.profilePictureUrl ?? pageItem.profilePicture ?? pageItem.profilePic ?? pageItem.avatar ?? undefined,
+        display_name: pageItem.title ?? pageItem.name ?? pageNameFromPosts,
         posts,
-        raw: { pageName: pageNameFromPosts, totalEngagement: totalLikes + totalComments + totalShares },
+        raw: { pageName: pageNameFromPosts, totalEngagement: totalLikes + totalComments + totalShares, pageFollowers, pageEnrich },
       };
     }
     case "instagram": {
@@ -352,44 +413,69 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
     }
     case "twitter": {
       const items = await runActor(ACTORS.twitter, {
-        twitterHandles: [p.handle],
-        startUrls: [p.profile_url],
-        urls: [p.profile_url],
+        profileUrls: [p.profile_url],
+        resultsLimit: limit,
+        usernames: [p.handle],
         maxItems: limit,
+        // legacy/alternative fields
+        handles: [p.handle],
+        twitterHandles: [p.handle],
+        startUrls: [{ url: p.profile_url }],
+        urls: [p.profile_url],
+        searchTerms: [`from:${p.handle}`],
+        tweetsDesired: limit,
+        maxTweets: limit,
+        addUserInfo: true,
+        includeUserInfo: true,
       }, token);
       // Debug: log item structure
       try {
         if (items && items.length > 0) {
-          console.log(`[twitter] returned ${items.length} items; sample keys:`, Object.keys(items[0]).slice(0,25));
+          console.log(`[twitter] returned ${items.length} items; sample keys:`, Object.keys(items[0]).slice(0, 25));
         }
       } catch (e) {
         // ignore
       }
-      const userItem = items[0] ?? {};
-      // Filter out tweets: has text/fullText, does NOT have screenName (that's the user profile)
-      const tweetItems = items.filter((t: any) => (t.tweetId || t.id || t.text || t.fullText) && !t.screenName && !t.screen_name);
-      const posts = tweetItems.slice(0, limit).map((t: any) => ({
-        external_id: String(t.id ?? t.tweetId ?? Math.random().toString()),
-        posted_at: safeDate(t.createdAt ?? t.created_at ?? t.timestamp),
-        url: t.url ?? t.twitterUrl ?? (t.id ? `https://twitter.com/${p.handle}/status/${t.id}` : null),
-        thumbnail_url: t.media?.[0]?.media_url_https ?? t.media?.[0]?.url ?? null,
-        caption: t.text ?? t.fullText ?? t.tweet ?? "",
-        media_type: t.media?.[0]?.type ?? "text",
-        likes: num(t.likeCount ?? t.favoriteCount ?? t.favorite_count),
-        comments: num(t.replyCount ?? t.reply_count ?? t.in_reply_to_count),
-        shares: num(t.retweetCount ?? t.retweet_count ?? 0),
-        views: num(t.viewCount ?? t.views),
-        raw: t,
-      }));
-      const author = userItem.author ?? userItem;
+      // Filter out demo/empty items returned by broken actors
+      const validItems = items.filter((t: any) => !t.demo && Object.keys(t).length > 2);
+      if (validItems.length === 0) {
+        console.warn('[twitter] All items appear to be demo/empty data');
+        return { followers: 0, posts: [], raw: items[0] ?? {} };
+      }
+      // Find user profile info from items
+      const userItem = validItems.find((t: any) =>
+        t.user?.followers_count != null || t.author?.followersCount != null ||
+        t.author?.followers != null || t.followersCount != null || t.followers_count != null || t.followers != null
+      ) ?? validItems[0] ?? {};
+      const user = userItem.user ?? userItem.author ?? userItem;
+      // Extract tweets — all valid items with text content
+      const tweetItems = validItems.filter((t: any) =>
+        t.full_text || t.text || t.fullText || t.tweetText || t.tweet || t.postText
+      );
+      const posts = tweetItems.slice(0, limit).map((t: any) => {
+        const tweetId = t.id_str ?? t.id ?? t.tweetId ?? t.tweet_id ?? t.postId;
+        return {
+          external_id: String(tweetId ?? Math.random().toString()),
+          posted_at: safeDate(t.created_at ?? t.createdAt ?? t.timestamp ?? t.date),
+          url: t.postUrl ?? t.url ?? t.twitterUrl ?? t.tweet_url ?? (tweetId ? `https://twitter.com/${p.handle}/status/${tweetId}` : null),
+          thumbnail_url: t.media?.[0]?.mediaUrlHttps ?? t.media?.[0]?.media_url_https ?? t.media?.[0]?.url ?? t.entities?.media?.[0]?.media_url_https ?? null,
+          caption: t.postText ?? t.full_text ?? t.text ?? t.fullText ?? t.tweetText ?? t.tweet ?? "",
+          media_type: t.media?.[0]?.type ?? (t.entities?.media ? "photo" : "text"),
+          likes: num(t.favorite_count ?? t.favouriteCount ?? t.likeCount ?? t.like_count ?? t.favoriteCount ?? t.likes),
+          comments: num(t.reply_count ?? t.replyCount ?? t.replies),
+          shares: num(t.repostCount ?? t.retweet_count ?? t.retweetCount ?? t.retweets),
+          views: num(t.views?.count ?? t.viewCount ?? t.views ?? t.impressions),
+          raw: t,
+        };
+      });
       return {
-        followers: num(author.followers ?? author.followersCount ?? author.followers_count),
-        following: num(author.following ?? author.followingCount ?? author.friends_count ?? author.friendsCount),
-        total_posts: num(author.statusesCount ?? author.tweetsCount ?? author.statuses_count ?? tweetItems.length),
-        avatar_url: author.profilePicture ?? author.profileImageUrl ?? author.profile_image_url_https ?? author.profile_image_url ?? undefined,
-        display_name: author.name ?? author.displayName ?? undefined,
+        followers: num(user.followers_count ?? user.followersCount ?? user.followers ?? user.public_metrics?.followers_count),
+        following: num(user.friends_count ?? user.followingCount ?? user.following ?? user.public_metrics?.following_count),
+        total_posts: num(user.statuses_count ?? user.statusesCount ?? user.tweetsCount ?? user.tweet_count ?? tweetItems.length),
+        avatar_url: user.profile_image_url_https ?? user.profileImageUrl ?? user.profilePicture ?? user.avatar ?? undefined,
+        display_name: user.name ?? user.displayName ?? undefined,
         posts,
-        raw: author,
+        raw: user,
       };
     }
     case "linkedin": {
@@ -427,6 +513,7 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
           'apify/linkedin-profile-scraper'
         ];
         const profItems = await runActor(profileActors, {
+          urls: [p.profile_url],
           linkedinUrl: p.profile_url,
           linkedinPublicUrl: p.profile_url,
           publicIdentifier: p.handle,
@@ -441,9 +528,13 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
               // ensure rawPosts is mutable
               // (we'll reassign below if needed)
               // merge while avoiding duplicates by id/url
-              const existing = new Set((rawPosts || []).map((r: any) => String(r.id ?? r.urn ?? r.postUrl ?? r.url ?? r.link ?? '')));
+              const liUrnStr = (item: any): string => {
+                if (typeof item.urn === 'object' && item.urn) return item.urn.activity_urn ?? item.urn.share_urn ?? item.full_urn ?? '';
+                return String(item.id ?? item.urn ?? item.postUrl ?? item.url ?? item.link ?? '');
+              };
+              const existing = new Set((rawPosts || []).map((r: any) => liUrnStr(r)));
               for (const pp of profilePosts) {
-                const pk = String(pp.id ?? pp.urn ?? pp.postUrl ?? pp.url ?? pp.link ?? Math.random().toString());
+                const pk = liUrnStr(pp) || Math.random().toString();
                 if (!existing.has(pk)) {
                   (rawPosts as any[]).push(pp);
                   existing.add(pk);
@@ -480,31 +571,45 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
       const display_name = company.name ?? company.title ?? author.name ?? first.name ?? p.handle;
       const avatar_url = company.logo ?? company.logoUrl ?? company.avatarUrl ?? author.avatar ?? null;
 
-      const posts = rawPosts.slice(0, limit).map((t: any) => ({
-        external_id: String(t.id ?? t.urn ?? t.postUrl ?? t.urnId ?? Math.random().toString()),
-        posted_at: safeDate(t.posted_at ?? t.postedAt ?? t.createdAt ?? t.publishedAt ?? t.postedAtISO),
-        url: t.postUrl ?? t.url ?? t.permalink ?? null,
-        thumbnail_url: t.image ?? t.thumbnail ?? (
-          // actor may return media as object or array
-          (t.media && (t.media.url || (Array.isArray(t.media.images) && t.media.images[0]?.url))) ??
-          (Array.isArray(t.media) && (t.media[0]?.url || t.media[0]?.image))
-        ) ?? null,
-        caption: t.text ?? t.commentary ?? t.description ?? t.body ?? "",
-        media_type: t.post_type ?? (t.image ? "image" : (t.video ? "video" : "text")),
-        likes: num(
-          t.stats?.like ?? t.stats?.likes ?? t.stats?.numLikes ?? t.stats?.likeCount ?? t.stats?.total_reactions ?? t.numLikes ?? t.likes ?? t.reactions ?? t.reactionCount
-        ),
-        comments: num(
-          t.stats?.comments ?? t.stats?.numComments ?? t.stats?.commentCount ?? t.numComments ?? t.comments ?? 0
-        ),
-        shares: num(
-          t.stats?.reposts ?? t.stats?.shares ?? t.stats?.numShares ?? t.stats?.shareCount ?? t.numShares ?? t.shares ?? 0
-        ),
-        views: num(
-          t.stats?.views ?? t.stats?.viewCount ?? t.views ?? 0
-        ),
-        raw: t,
-      }));
+      const posts = rawPosts.slice(0, limit).map((t: any) => {
+        // Handle LinkedIn's urn field which can be an object {activity_urn, share_urn, ugcPost_urn}
+        let extId: string;
+        if (typeof t.urn === 'object' && t.urn !== null) {
+          extId = t.urn.activity_urn ?? t.urn.share_urn ?? t.full_urn ?? Math.random().toString();
+        } else {
+          extId = String(t.id ?? t.urn ?? t.postUrl ?? t.urnId ?? Math.random().toString());
+        }
+        // Handle LinkedIn's posted_at which can be an object {date, relative, timestamp}
+        const rawPostedAt = t.posted_at ?? t.postedAt;
+        let postedAtVal: any = rawPostedAt;
+        if (rawPostedAt && typeof rawPostedAt === 'object' && !(rawPostedAt instanceof Date)) {
+          postedAtVal = rawPostedAt.timestamp ?? rawPostedAt.date ?? rawPostedAt.relative;
+        }
+        return {
+          external_id: extId,
+          posted_at: safeDate(postedAtVal ?? t.createdAt ?? t.publishedAt ?? t.postedAtISO),
+          url: t.postUrl ?? t.url ?? t.permalink ?? null,
+          thumbnail_url: t.image ?? t.thumbnail ?? (
+            (t.media && typeof t.media === 'object' && !Array.isArray(t.media) && (t.media.url || (Array.isArray(t.media.images) && t.media.images[0]?.url))) ??
+            (Array.isArray(t.media) && (t.media[0]?.url || t.media[0]?.image))
+          ) ?? null,
+          caption: t.text ?? t.commentary ?? t.description ?? t.body ?? "",
+          media_type: t.media?.type ?? t.post_type ?? (t.image ? "image" : (t.video ? "video" : "text")),
+          likes: num(
+            t.stats?.total_reactions ?? t.stats?.like ?? t.stats?.likes ?? t.stats?.numLikes ?? t.stats?.likeCount ?? t.numLikes ?? t.likes ?? t.reactions ?? t.reactionCount
+          ),
+          comments: num(
+            t.stats?.comments ?? t.stats?.numComments ?? t.stats?.commentCount ?? t.numComments ?? t.comments ?? 0
+          ),
+          shares: num(
+            t.stats?.reposts ?? t.stats?.shares ?? t.stats?.numShares ?? t.stats?.shareCount ?? t.numShares ?? t.shares ?? 0
+          ),
+          views: num(
+            t.stats?.views ?? t.stats?.viewCount ?? t.views ?? 0
+          ),
+          raw: t,
+        };
+      });
 
       return {
         followers,
@@ -609,7 +714,8 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
         profileUrl.includes('/http') || 
         handle.startsWith('http') || 
         handle.includes('/') ||
-        (p.platform === 'youtube' && handle.includes('@') && handle.indexOf('@') > 0);
+        (p.platform === 'youtube' && handle.includes('@') && handle.indexOf('@') > 0) ||
+        !profileUrl.startsWith('http');
         
       if (isMalformed) {
         const cleaned = cleanHandleAndUrl(handle || profileUrl, p.platform);

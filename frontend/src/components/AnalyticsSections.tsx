@@ -214,7 +214,7 @@ export function AnalyticsSections({
         <Card className="p-4 sm:p-5 shadow-[var(--shadow-card)]">
           <h3 className="font-semibold mb-1">Engagement composition</h3>
           <p className="text-xs text-muted-foreground mb-4">Likes vs comments vs shares</p>
-          <div className="h-48">
+          <div className="h-56">
             {engComposition.length === 0 ? (
               <Empty />
             ) : (
@@ -234,7 +234,7 @@ export function AnalyticsSections({
         <Card className="p-4 sm:p-5 shadow-[var(--shadow-card)]">
           <h3 className="font-semibold mb-1">Content format mix</h3>
           <p className="text-xs text-muted-foreground mb-4">Distribution of media types</p>
-          <div className="h-48">
+          <div className="h-56">
             {mediaTypes.length === 0 ? <Empty /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mediaTypes} layout="vertical" margin={{ left: 10 }}>
@@ -258,7 +258,7 @@ export function AnalyticsSections({
             <h3 className="font-semibold">Best time to post</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-4">Average engagement per post, by hour of day</p>
-          <div className="h-60 sm:h-72">
+          <div className="h-72 sm:h-80">
             {posts.length === 0 ? <Empty /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={hourlyEng}>
@@ -299,7 +299,7 @@ export function AnalyticsSections({
         <Card className="p-4 sm:p-5 shadow-[var(--shadow-card)]">
           <h3 className="font-semibold mb-1">Cumulative engagement</h3>
           <p className="text-xs text-muted-foreground mb-4">Running total over the period</p>
-          <div className="h-64">
+          <div className="h-80">
             {cumulative.length === 0 ? <Empty /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={cumulative}>
@@ -317,7 +317,7 @@ export function AnalyticsSections({
         <Card className="p-4 sm:p-5 shadow-[var(--shadow-card)]">
           <h3 className="font-semibold mb-1">Caption length vs engagement</h3>
           <p className="text-xs text-muted-foreground mb-4">Does writing more drive more interaction?</p>
-          <div className="h-64">
+          <div className="h-80">
             {lengthVsEng.length === 0 ? <Empty /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart>

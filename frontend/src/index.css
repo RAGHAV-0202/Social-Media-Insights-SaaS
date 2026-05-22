@@ -169,7 +169,7 @@
 }
 
 @layer base {
-  * { @apply border-border; }
+  /* Removed global border on all elements (was adding visual noise and making layout look rushed) */
   html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
   /* Lenis: disable native smooth scroll to avoid jitter while Lenis drives scroll */
   html.lenis, html.lenis body { height: auto; }

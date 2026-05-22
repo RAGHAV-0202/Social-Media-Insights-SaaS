@@ -6,7 +6,7 @@ export const PLATFORMS = [
   { id: "instagram", label: "Instagram", color: "instagram", icon: Instagram },
   { id: "tiktok",    label: "TikTok",    color: "tiktok",    icon: Music2 },
   { id: "youtube",   label: "YouTube",   color: "youtube",   icon: Youtube },
-  { id: "twitter",   label: "X",         color: "twitter",   icon: Twitter },
+  { id: "twitter",   label: "Twitter",   color: "twitter",   icon: Twitter },
   { id: "linkedin",  label: "LinkedIn",  color: "linkedin",  icon: Linkedin },
 ] as const;
 

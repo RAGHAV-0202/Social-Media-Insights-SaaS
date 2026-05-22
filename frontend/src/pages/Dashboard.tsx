@@ -1014,7 +1014,7 @@ export default function Dashboard() {
               <EmptyState
                 variant="no-connections"
                 title="No social profiles connected"
-                description="Connect Instagram, TikTok, YouTube, Facebook or X profiles to start tracking performance."
+                description="Connect Instagram, TikTok, YouTube, Facebook or Twitter profiles to start tracking performance."
                 primaryAction={{ label: "Connect Profiles", onClick: () => navigate("/settings"), icon: ExternalLink }}
               />
             )}
@@ -1076,19 +1076,25 @@ export default function Dashboard() {
                       <div className="flex items-end justify-between">
                         <div>
                           <h2 className="text-2xl font-semibold font-serif-display">Audience growth</h2>
-                          <p className="text-sm text-muted-foreground">Net follower change in selected range, per platform</p>
+                          <p className="text-sm text-muted-foreground">Current follower counts per platform, with net change in selected range</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
                         {followerDeltas.map((d) => (
-                          <Card key={d.platform} className="p-5 shadow-[var(--shadow-card)]">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider">{d.platform}</div>
-                            <div className="text-2xl font-semibold mt-2 font-serif-display">{formatNumber(d.current)}</div>
-                            <div className={cn(
-                              "text-xs mt-2 font-medium",
-                              d.delta > 0 ? "text-emerald-600" : d.delta < 0 ? "text-rose-600" : "text-muted-foreground",
-                            )}>
-                              {d.delta > 0 ? "+" : ""}{formatNumber(d.delta)} ({(d.pct * 100).toFixed(2)}%)
+                          <Card key={d.platform} className="p-5 shadow-[var(--shadow-card)] flex flex-col justify-between">
+                            <div>
+                              <div className="text-xs text-muted-foreground uppercase tracking-wider">{d.platform}</div>
+                              <div className="text-2xl font-semibold mt-2 font-serif-display">{formatNumber(d.current)}</div>
+                              <div className="text-[10px] text-muted-foreground/80 mt-0.5">Current Followers</div>
+                            </div>
+                            <div className="mt-4">
+                              <div className="text-[10px] text-muted-foreground/80 uppercase tracking-wider">Net Change</div>
+                              <div className={cn(
+                                "text-xs font-semibold mt-0.5",
+                                d.delta > 0 ? "text-emerald-600" : d.delta < 0 ? "text-rose-600" : "text-muted-foreground",
+                              )}>
+                                {d.delta > 0 ? "+" : ""}{formatNumber(d.delta)} ({(d.pct * 100).toFixed(2)}%)
+                              </div>
                             </div>
                           </Card>
                         ))}
@@ -1163,7 +1169,6 @@ export default function Dashboard() {
                           if (!profile) return null;
                           const snap = latestByProfile.get(profile.id);
                           const platformPosts = postsInRange.filter((p) => p.profile_id === profile.id);
-                          if (platformPosts.length === 0) return null;
 
                           const eng = platformPosts.reduce((s, p) => s + engOf(p), 0);
                           const views = platformPosts.reduce((s, p) => s + p.views, 0);

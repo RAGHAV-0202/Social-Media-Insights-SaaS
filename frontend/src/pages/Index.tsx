@@ -82,7 +82,7 @@ export default function Index() {
               Supporting top accounts
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
-              {["Instagram", "TikTok", "YouTube", "Facebook", "X"].map((n) => (
+              {["Instagram", "TikTok", "YouTube", "Facebook", "Twitter"].map((n) => (
                 <span
                   key={n}
                   className="font-serif-display text-xl italic text-muted-foreground/80"

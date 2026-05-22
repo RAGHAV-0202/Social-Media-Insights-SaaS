@@ -1083,6 +1083,13 @@ export default function Dashboard() {
                       </div>
                     </Reveal>
 
+                    {/* Analytics sections: Audience growth, engagement at a glance */}
+                    <Reveal>
+                      <Suspense fallback={<ChartSkeleton />}> 
+                        <AnalyticsSections posts={postsInRange} profiles={filteredProfiles} snapshots={snapshots} from={from} to={to} />
+                      </Suspense>
+                    </Reveal>
+
                   </div>
                 )}
 

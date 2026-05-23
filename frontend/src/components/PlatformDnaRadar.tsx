@@ -5,11 +5,12 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
-import { Trophy, Flame, Sparkles, TrendingUp, ExternalLink } from "lucide-react";
+import { Trophy, Flame, Sparkles, TrendingUp, ExternalLink, Info } from "lucide-react";
 import { PLATFORMS, platformMeta, formatNumber, formatPercent } from "@/lib/social";
 import { ChartTooltip } from "@/components/charts/ChartTooltip";
 import { EmptyState } from "@/components/EmptyState";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Post = {
   id: string; profile_id: string; posted_at: string | null; url: string | null;
@@ -204,16 +205,80 @@ export function PlatformDnaRadar({
                           </a>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums"><AnimatedNumber value={formatNumber(r.followers)} /></td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {r.pl.id === "linkedin" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatNumber(r.followers)} />
+                                <Info className="size-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              LinkedIn followers refresh weekly to keep API sync costs low.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatNumber(r.followers)} />
+                        )}
+                      </td>
                       <td className={`py-2.5 px-3 text-right tabular-nums font-medium ${
                         r.delta > 0 ? "text-emerald-600" : r.delta < 0 ? "text-rose-600" : "text-muted-foreground"
                       }`}>{r.delta > 0 ? "+" : ""}<AnimatedNumber value={formatNumber(r.delta)} /></td>
                       <td className="py-2.5 px-3 text-right tabular-nums"><AnimatedNumber value={String(r.posts)} /></td>
-                      <td className="py-2.5 px-3 text-right tabular-nums"><AnimatedNumber value={formatNumber(r.eng)} /></td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground"><AnimatedNumber value={formatNumber(Math.round(r.avgEng))} /></td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {r.pl.id === "youtube" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatNumber(r.eng)} />
+                                <Info className="size-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Likes & comments are omitted on YouTube to save API credits. Performance is tracked via views.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatNumber(r.eng)} />
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                        {r.pl.id === "youtube" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatNumber(Math.round(r.avgEng))} />
+                                <Info className="size-3 text-muted-foreground/60" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Likes & comments are omitted on YouTube to save API credits. Performance is tracked via views.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatNumber(Math.round(r.avgEng))} />
+                        )}
+                      </td>
                       <td className="py-2.5 px-3 text-right tabular-nums"><AnimatedNumber value={formatNumber(r.views)} /></td>
                       <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground"><AnimatedNumber value={formatNumber(Math.round(r.avgViews))} /></td>
-                      <td className="py-2.5 px-3 text-right tabular-nums font-medium"><AnimatedNumber value={formatPercent(r.er)} /></td>
+                      <td className="py-2.5 px-3 text-right tabular-nums font-medium">
+                        {r.pl.id === "youtube" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatPercent(r.er)} />
+                                <Info className="size-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Likes & comments are omitted on YouTube to save API credits. Performance is tracked via views.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatPercent(r.er)} />
+                        )}
+                      </td>
 
                     </tr>
                   );

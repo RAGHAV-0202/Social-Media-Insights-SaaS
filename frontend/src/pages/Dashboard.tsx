@@ -139,7 +139,7 @@ export default function Dashboard() {
 
   // ---- Data loading ----
   const dashboardQuery = useQuery({
-    queryKey: ["dashboard-data"],
+    queryKey: ["dashboard-data", workspace?.id],
     queryFn: async () => {
       const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const res = await fetch(`${baseUrl}/api/dashboard-data`, {
@@ -156,7 +156,6 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   const profiles = dashboardQuery.data?.profiles ?? [];
@@ -1141,7 +1140,7 @@ export default function Dashboard() {
                         delta={pctDelta(totalInteractions, prevInteractions)}
                         series={interactionsSeries}
                       />
-                      <div className="col-span-1 sm:col-span-2 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="col-span-1 sm:col-span-2 lg:col-span-2 row-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {metrics.followers && (
                           <KpiCard icon={Users} label="Total Followers" value={formatNumber(totalFollowers)} accent="primary" delta={followersDelta} />
                         )}

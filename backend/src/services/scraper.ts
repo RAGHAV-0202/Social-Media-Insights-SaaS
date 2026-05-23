@@ -484,14 +484,52 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
       const author = first.author || {};
       const company = first.company || {};
 
-      const followers = num(
-        // company-level
+      // 1. Check if we need to run the profile scraper
+      const latestSnap = await ProfileSnapshotModel.findOne({ 
+        profile_id: p.id,
+        followers: { $gt: 0 }
+      }).sort({ captured_at: -1 }).lean();
+
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const needsProfileRefresh = !latestSnap || new Date(latestSnap.captured_at) < oneWeekAgo;
+      
+      let profileFollowers = num(
         company.followerCount ?? company.followersCount ?? company.followers ??
-        // author-level common keys
         author.followers ?? author.followerCount ?? author.followersCount ?? author.stats?.followers ?? author.stats?.followersCount ??
-        // fallback to first item
         first.followerCount ?? first.followers
       );
+
+      if (needsProfileRefresh && profileFollowers === 0) {
+        try {
+          console.log(`[linkedin] Profile refresh needed for ${p.handle}. Running profile scraper...`);
+          const profileActors = [
+            'vulnv/linkedin-profile-scraper',
+            'dev_fusion/Linkedin-Profile-Scraper',
+            'apify/linkedin-profile-scraper'
+          ];
+          const profItems = await runActor(profileActors, {
+            urls: [p.profile_url],
+            linkedinUrl: p.profile_url,
+            linkedinPublicUrl: p.profile_url,
+            publicIdentifier: p.handle,
+          }, token, 60_000);
+          const profileEnrich = Array.isArray(profItems) ? profItems[0] : profItems;
+          if (profileEnrich) {
+            const count = num(profileEnrich.followers ?? profileEnrich.connections ?? profileEnrich.connectionsCount ?? profileEnrich.followersCount);
+            if (count > 0) {
+              profileFollowers = count;
+              console.log(`[linkedin] Profile scraper successfully returned followers: ${profileFollowers}`);
+            }
+          }
+        } catch (e) {
+          console.warn('[linkedin] Profile enrichment failed, using cached followers:', (e as Error).message || e);
+        }
+      }
+
+      // If we didn't scrape or the scrape failed, reuse the cached followers
+      const followers = profileFollowers > 0 
+        ? profileFollowers 
+        : (latestSnap?.followers ?? 0);
 
       const display_name = company.name ?? company.title ?? author.name ?? first.name ?? p.handle;
       const avatar_url = company.logo ?? company.logoUrl ?? company.avatarUrl ?? author.avatar ?? null;

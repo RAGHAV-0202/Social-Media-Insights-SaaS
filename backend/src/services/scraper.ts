@@ -4,23 +4,16 @@ import { ProfileModel, ProfileSnapshotModel, PostModel, RefreshRunModel, Workspa
 dotenv.config();
 
 const ACTORS: Record<string, string | string[]> = {
-  facebook:  [
-    "apify/facebook-posts-scraper",  // Returns posts, not just pages
-    "apidojo/facebook-scraper",      // Alternative: combined page + posts
-    "apify/facebook-pages-scraper",  // Fallback: pages-only (will return 0 posts)
-  ],
+  facebook:  "apify/facebook-posts-scraper",   // Standard posts scraper
   instagram: "apify/instagram-profile-scraper",
   tiktok:    "clockworks/tiktok-scraper",
   youtube:   "streamers/youtube-channel-scraper",
   twitter: [
-    "scraper_one/x-profile-posts-scraper",
-    "parseforge/x-com-scraper",
-    "apidojo/twitter-scraper-lite",
-    "apidojo/tweet-scraper",
+    "parseforge/x-com-scraper",       // Primary — cheapest at ~$0.10-0.15/1k
+    "apidojo/tweet-scraper",          // Fallback
   ],
   linkedin: [
     "apimaestro/linkedin-profile-posts",
-    "vulnv/linkedin-profile-scraper",
     "dev_fusion/Linkedin-Profile-Scraper",
   ],
 };
@@ -104,30 +97,25 @@ async function runActor(actor: string | string[], input: any, token: string, tim
       
       // Dynamically clean inputs for specific actors to prevent parameter conflicts
       let prunedInput: any = {};
-      if (a === "scraper_one/x-profile-posts-scraper") {
-        prunedInput = {
-          profileUrls: input.profileUrls,
-          resultsLimit: input.resultsLimit ?? input.maxItems ?? 25,
-        };
-      } else if (a === "parseforge/x-com-scraper") {
+      if (a === "parseforge/x-com-scraper") {
         const username = input.usernames?.[0] ?? (input.profileUrls?.[0] ? input.profileUrls[0].split('/').pop() : "");
         prunedInput = {
           usernames: username ? [username] : [],
           maxItems: input.maxItems ?? input.resultsLimit ?? 25,
         };
-      } else if (a === "apidojo/twitter-scraper-lite" || a === "apidojo/tweet-scraper") {
+      } else if (a === "apidojo/tweet-scraper") {
         prunedInput = {
           startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
           tweetsDesired: input.tweetsDesired ?? input.resultsLimit ?? 25,
         };
       } else if (a === "apify/facebook-posts-scraper") {
         prunedInput = {
-          startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
+          startUrls: input.startUrls ?? (input.urls ? input.urls.map((u: string) => ({ url: u })) : []),
           resultsLimit: input.resultsLimit ?? 25,
         };
       } else if (a === "apify/facebook-pages-scraper") {
         prunedInput = {
-          startUrls: input.startUrls ?? (input.profileUrls ? input.profileUrls.map((u: string) => ({ url: u })) : []),
+          startUrls: input.startUrls ?? (input.urls ? input.urls.map((u: string) => ({ url: u })) : []),
         };
       } else {
         prunedInput = input;
@@ -243,17 +231,12 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
         resultsLimit: limit,
       }, token, 180_000);
       
-      // Handle both post items and page metadata
       const rawPosts = Array.isArray(items) ? items.filter((i: any) => i.text || i.message || i.story || i.postText || i.postId) : [];
 
       // 2. Fetch page-level metadata using pages-scraper to enrich profile details (followers count)
       let pageEnrich: any = null;
       try {
-        const pageActors = [
-          "apify/facebook-pages-scraper",
-          "apidojo/facebook-scraper"
-        ];
-        const pageItems = await runActor(pageActors, {
+        const pageItems = await runActor("apify/facebook-pages-scraper", {
           startUrls: [{ url: p.profile_url }],
           urls: [p.profile_url],
         }, token, 60_000);
@@ -266,7 +249,7 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
       }
 
       // Try to extract page-level metadata from pageEnrich first, then fallback to posts or fallback estimate
-      const pageItem = pageEnrich ?? items.find((i: any) => (i.likes != null || i.followers != null || i.categories != null) && !i.postId && !i.text && !i.story) ?? {};
+      const pageItem = pageEnrich ?? {};
       const pageFollowers = num(pageItem.followers ?? pageItem.followersCount ?? pageItem.likes ?? pageItem.likeCount ?? pageItem.fan_count);
 
       // Extract page info from posts or page metadata
@@ -501,65 +484,7 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
       const author = first.author || {};
       const company = first.company || {};
 
-      // Attempt to enrich profile-level metadata (followers/connections) by running
-      // the Linkedin-Profile-Scraper actor which returns profile details including followers.
-      let profileEnrich: any = null;
-      try {
-        const profileActors = [
-          'vulnv/linkedin-profile-scraper',
-          'dev_fusion/Linkedin-Profile-Scraper',
-          'apimaestro/linkedin-profile-scraper',
-          'apimaestro/linkedin-profile-posts',
-          'apify/linkedin-profile-scraper'
-        ];
-        const profItems = await runActor(profileActors, {
-          urls: [p.profile_url],
-          linkedinUrl: p.profile_url,
-          linkedinPublicUrl: p.profile_url,
-          publicIdentifier: p.handle,
-        }, token, 30_000);
-        profileEnrich = Array.isArray(profItems) ? profItems[0] : profItems;
-        if (profileEnrich) {
-          console.log('[linkedin] profile enrich returned keys:', Object.keys(profileEnrich).slice(0,20));
-          // If the enrichment actor returned posts/activity, merge them into rawPosts
-          try {
-            const profilePosts = profileEnrich.posts ?? profileEnrich.activity ?? profileEnrich.posts_list ?? [];
-            if (Array.isArray(profilePosts) && profilePosts.length) {
-              // ensure rawPosts is mutable
-              // (we'll reassign below if needed)
-              // merge while avoiding duplicates by id/url
-              const liUrnStr = (item: any): string => {
-                if (typeof item.urn === 'object' && item.urn) return item.urn.activity_urn ?? item.urn.share_urn ?? item.full_urn ?? '';
-                return String(item.id ?? item.urn ?? item.postUrl ?? item.url ?? item.link ?? '');
-              };
-              const existing = new Set((rawPosts || []).map((r: any) => liUrnStr(r)));
-              for (const pp of profilePosts) {
-                const pk = liUrnStr(pp) || Math.random().toString();
-                if (!existing.has(pk)) {
-                  (rawPosts as any[]).push(pp);
-                  existing.add(pk);
-                }
-              }
-            }
-          } catch (e) {
-            // ignore merge errors
-            console.warn('[linkedin] failed merging profile posts:', (e as Error).message || e);
-          }
-        }
-      } catch (e) {
-        // runActor will try candidates; surface useful approval URLs if present
-        const msg = (e as Error).message || String(e);
-        const approvalMatch = msg.match(/"approvalUrl"\s*:\s*"([^"]+)"/);
-        if (approvalMatch) {
-          console.warn('[linkedin] profile enrichment requires approval:', approvalMatch[1]);
-        } else {
-          console.warn('[linkedin] profile enrichment actor(s) failed:', msg);
-        }
-      }
-
-      const enrichedFollowers = num(profileEnrich?.followers ?? profileEnrich?.connections ?? profileEnrich?.connectionsCount ?? profileEnrich?.followersCount);
-
-      const followers = enrichedFollowers > 0 ? enrichedFollowers : num(
+      const followers = num(
         // company-level
         company.followerCount ?? company.followersCount ?? company.followers ??
         // author-level common keys
@@ -640,18 +565,6 @@ async function refreshOne(p: Profile, token: string, limit = 25) {
     }
   );
 
-  // Insert snapshot
-  await ProfileSnapshotModel.create({
-    profile_id: p.id,
-    workspace_id: p.workspace_id,
-    followers: data.followers,
-    following: data.following ?? null,
-    total_posts: data.total_posts ?? null,
-    total_views: data.total_views ?? null,
-    raw: data.raw,
-    captured_at: new Date(),
-  });
-
   // Upsert posts
   let upserted = 0;
   if (data.posts.length) {
@@ -683,6 +596,28 @@ async function refreshOne(p: Profile, token: string, limit = 25) {
     }
     upserted = data.posts.length;
   }
+
+  // Calculate total views for snapshot (fallback to database sum if scraper doesn't provide it)
+  let totalViews = data.total_views;
+  if (totalViews === undefined || totalViews === null) {
+    const result = await PostModel.aggregate([
+      { $match: { profile_id: p.id } },
+      { $group: { _id: null, totalViews: { $sum: '$views' } } }
+    ]);
+    totalViews = result[0]?.totalViews ?? 0;
+  }
+
+  // Insert snapshot
+  await ProfileSnapshotModel.create({
+    profile_id: p.id,
+    workspace_id: p.workspace_id,
+    followers: data.followers,
+    following: data.following ?? null,
+    total_posts: data.total_posts ?? null,
+    total_views: totalViews ?? null,
+    raw: data.raw,
+    captured_at: new Date(),
+  });
 
   console.log(`[refreshOne] profile ${p.id} (${p.platform}) upserted ${upserted} posts`);
 
@@ -758,7 +693,20 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
     // Run sequentially to avoid Apify concurrency issues
     for (const p of filteredProfiles) {
       try {
-        const r = await refreshOne(p, activeToken, limit);
+        // Check if there are any existing snapshots for this profile to detect first-time sync
+        const snapshotCount = await ProfileSnapshotModel.countDocuments({ profile_id: p.id });
+        const isFirstSync = snapshotCount === 0;
+        
+        // If first sync, fetch up to 100 posts (or the custom workspace limit if higher) to build history
+        const profileLimit = isFirstSync 
+          ? Math.max(limit, 100)
+          : limit;
+
+        if (isFirstSync) {
+          console.log(`[runScraperSync] First-time sync detected for profile ${p.id} (${p.platform}). Boosting limit to ${profileLimit} posts.`);
+        }
+
+        const r = await refreshOne(p, activeToken, profileLimit);
         postsTotal += r.posts_upserted;
         updated += 1;
       } catch (e) {

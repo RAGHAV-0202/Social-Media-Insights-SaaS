@@ -548,18 +548,13 @@ export default function Settings() {
                         disabled={!isKeyVerified}
                         className="w-full p-2.5 bg-background border border-input rounded-md text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                       >
-                        <option value={10}>Last 10 posts</option>
-                        <option value={20}>Last 20 posts</option>
+                        <option value={5}>Last 5 posts</option>
+                        <option value={15}>Last 15 posts</option>
                         <option value={25}>Last 25 posts (Default)</option>
                         <option value={50}>Last 50 posts</option>
-                        <option value={100}>Last 100 posts</option>
-                        <option value={150}>Last 150 posts</option>
-                        <option value={200}>Last 200 posts</option>
-                        <option value={500}>Last 500 posts</option>
-                        <option value={1000}>Last 1000 posts</option>
                       </select>
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Controls the depth of historical posts fetched from Apify actors per refresh cycle.
+                        This is the number of posts fetched per sync. Choose a higher limit only if you post more than the lower limit between syncs, as fetching more posts will cost more.
                       </p>
                     </div>
                   </div>

@@ -293,6 +293,10 @@ export default function Dashboard() {
     return best;
   };
 
+  const rangeMs = to.getTime() - from.getTime();
+  const prevFrom = new Date(from.getTime() - rangeMs);
+  const prevTo = new Date(from.getTime());
+
   const followersAtTo = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of filteredProfiles) {
@@ -311,9 +315,33 @@ export default function Dashboard() {
     return m;
   }, [filteredProfiles, snapshots, from]);
 
-  const rangeMs = to.getTime() - from.getTime();
-  const prevFrom = new Date(from.getTime() - rangeMs);
-  const prevTo = new Date(from.getTime());
+  const viewsAtTo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of filteredProfiles) {
+      const snap = snapshotAt(p.id, to) ?? latestByProfile.get(p.id);
+      m.set(p.id, snap?.total_views ?? 0);
+    }
+    return m;
+  }, [filteredProfiles, snapshots, to, latestByProfile]);
+
+  const viewsAtFrom = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of filteredProfiles) {
+      const snap = snapshotAt(p.id, from);
+      m.set(p.id, snap?.total_views ?? 0);
+    }
+    return m;
+  }, [filteredProfiles, snapshots, from]);
+
+  const viewsAtPrevFrom = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of filteredProfiles) {
+      const snap = snapshotAt(p.id, prevFrom);
+      m.set(p.id, snap?.total_views ?? 0);
+    }
+    return m;
+  }, [filteredProfiles, snapshots, prevFrom]);
+
   const postsInPrev = useMemo(
     () => posts.filter((p: any) => {
       if (!profileIds.has(p.profile_id) || !p.posted_at) return false;
@@ -330,7 +358,22 @@ export default function Dashboard() {
   const totalFollowersStart = filteredProfiles.reduce((sum, p) => sum + (followersAtFrom.get(p.id) ?? 0), 0);
   const followersDelta = totalFollowersStart > 0 ? (totalFollowers - totalFollowersStart) / totalFollowersStart : null;
   const totalEngagement = postsInRange.reduce((s, p) => s + engOf(p), 0);
-  const totalViews = postsInRange.reduce((s, p) => s + p.views, 0);
+
+  // Calculate total views based on overall snapshots delta if available, otherwise fallback to posts-in-range sum
+  const totalViewsEnd = filteredProfiles.reduce((sum, p) => sum + (viewsAtTo.get(p.id) ?? 0), 0);
+  const totalViewsStart = filteredProfiles.reduce((sum, p) => sum + (viewsAtFrom.get(p.id) ?? 0), 0);
+  const totalViewsPrevStart = filteredProfiles.reduce((sum, p) => sum + (viewsAtPrevFrom.get(p.id) ?? 0), 0);
+
+  const totalViews = totalViewsStart > 0 
+    ? Math.max(0, totalViewsEnd - totalViewsStart)
+    : postsInRange.reduce((s, p) => s + (p.views || 0), 0);
+
+  const prevViewsMetric = totalViewsPrevStart > 0
+    ? Math.max(0, totalViewsStart - totalViewsPrevStart)
+    : prevViews;
+
+  const viewsDelta = prevViewsMetric > 0 ? (totalViews - prevViewsMetric) / prevViewsMetric : null;
+
   const rawEngagementInRange = postsInRange.reduce((s, p) => s + p.likes + p.comments + p.shares, 0);
   const rawEngagementInPrev = postsInPrev.reduce((s, p) => s + p.likes + p.comments + p.shares, 0);
   const followersGained = Math.max(0, totalFollowers - totalFollowersStart);
@@ -489,7 +532,7 @@ export default function Dashboard() {
       totalEngagement,
       totalPosts: postsInRange.length,
       totalFollowers,
-      viewsDeltaPct: pct(pctDelta(totalViews, prevViews)),
+      viewsDeltaPct: pct(viewsDelta),
       engDeltaPct: pct(pctDelta(totalEngagement, prevEngagement)),
       postsDeltaPct: pct(pctDelta(postsInRange.length, postsInPrev.length)),
       followersDeltaPct: pct(followersDelta),
@@ -501,7 +544,7 @@ export default function Dashboard() {
       bestSlot,
       topHashtag,
     };
-  }, [postsInRange, postsInPrev, filteredProfiles, from, to, totalViews, totalEngagement, totalFollowers, prevViews, prevEngagement, followersDelta]);
+  }, [postsInRange, postsInPrev, filteredProfiles, from, to, totalViews, totalEngagement, totalFollowers, prevViews, prevEngagement, followersDelta, viewsDelta]);
 
   const viewsSeries = useMemo(() => {
     const byDay = new Map<string, number>();
@@ -546,7 +589,21 @@ export default function Dashboard() {
       const bg = "#F5F0E8";
 
       const totalPosts = postsInRange.length;
-      const totalViews = postsInRange.reduce((s, p) => s + (p.views || 0), 0);
+      
+      const viewsAtToMap = new Map<string, number>();
+      const viewsAtFromMap = new Map<string, number>();
+      for (const p of filteredProfiles) {
+        const snapTo = snapshotAt(p.id, to) ?? latestByProfile.get(p.id);
+        const snapFrom = snapshotAt(p.id, from);
+        viewsAtToMap.set(p.id, snapTo?.total_views ?? 0);
+        viewsAtFromMap.set(p.id, snapFrom?.total_views ?? 0);
+      }
+      const totalViewsEndPdf = filteredProfiles.reduce((sum, p) => sum + (viewsAtToMap.get(p.id) ?? 0), 0);
+      const totalViewsStartPdf = filteredProfiles.reduce((sum, p) => sum + (viewsAtFromMap.get(p.id) ?? 0), 0);
+      const totalViews = totalViewsStartPdf > 0 
+        ? Math.max(0, totalViewsEndPdf - totalViewsStartPdf)
+        : postsInRange.reduce((s, p) => s + (p.views || 0), 0);
+
       const totalEngagement = postsInRange.reduce(
         (s, p) => s + (p.likes || 0) + (p.comments || 0) + (p.shares || 0),
         0,
@@ -1066,9 +1123,36 @@ export default function Dashboard() {
                       </Badge>
                     </div>
 
-                    {/* AI Weekly Brief */}
-                    <Reveal>
-                      <GeminiInsightsPanel stats={summaryStats} />
+                    {/* KPI Bento Grid — headline numbers first */}
+                    <Reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                      {metrics.views && (
+                        <KpiFeatured
+                          label="Total Views"
+                          value={formatNumber(totalViews)}
+                          sub={`${format(from, "MMM d")} – ${format(to, "MMM d")}`}
+                          delta={viewsDelta}
+                          series={viewsSeries}
+                        />
+                      )}
+                      <KpiFeatured
+                        label="Total Interactions"
+                        value={formatNumber(totalInteractions)}
+                        sub={`Likes, comments, shares and new followers`}
+                        delta={pctDelta(totalInteractions, prevInteractions)}
+                        series={interactionsSeries}
+                      />
+                      <div className="col-span-1 sm:col-span-2 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {metrics.followers && (
+                          <KpiCard icon={Users} label="Total Followers" value={formatNumber(totalFollowers)} accent="primary" delta={followersDelta} />
+                        )}
+                        {engagementMetricsOn && (
+                          <KpiCard icon={Heart} label="Engagement" value={formatNumber(totalEngagement)} accent="accent" delta={pctDelta(totalEngagement, prevEngagement)} />
+                        )}
+                        {engagementMetricsOn && (
+                          <KpiCard icon={TrendingUp} label="Avg Eng. Rate" value={formatPercent(avgEngagementRate)} accent="accent" />
+                        )}
+                        <KpiCard icon={FileText} label="Number of Posts" value={formatNumber(postsInRange.length)} accent="primary" delta={pctDelta(postsInRange.length, postsInPrev.length)} />
+                      </div>
                     </Reveal>
 
                     {/* Audience growth (platform follower deltas) */}
@@ -1106,39 +1190,10 @@ export default function Dashboard() {
                       </div>
                     </section>
 
-                    {/* KPI Bento Grid */}
-                    <Reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-                      {metrics.views && (
-                        <KpiFeatured
-                          label="Total Views"
-                          value={formatNumber(totalViews)}
-                          sub={`${format(from, "MMM d")} – ${format(to, "MMM d")}`}
-                          delta={pctDelta(totalViews, prevViews)}
-                          series={viewsSeries}
-                        />
-                      )}
-                      <KpiFeatured
-                        label="Total Interactions"
-                        value={formatNumber(totalInteractions)}
-                        sub={`Likes, comments, shares and new followers`}
-                        delta={pctDelta(totalInteractions, prevInteractions)}
-                        series={interactionsSeries}
-                      />
-                      <div className="col-span-1 sm:col-span-2 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {metrics.followers && (
-                          <KpiCard icon={Users} label="Total Followers" value={formatNumber(totalFollowers)} accent="primary" delta={followersDelta} />
-                        )}
-                        {engagementMetricsOn && (
-                          <KpiCard icon={Heart} label="Engagement" value={formatNumber(totalEngagement)} accent="accent" delta={pctDelta(totalEngagement, prevEngagement)} />
-                        )}
-                        {engagementMetricsOn && (
-                          <KpiCard icon={TrendingUp} label="Avg Eng. Rate" value={formatPercent(avgEngagementRate)} accent="accent" />
-                        )}
-                        <KpiCard icon={FileText} label="Number of Posts" value={formatNumber(postsInRange.length)} accent="primary" delta={pctDelta(postsInRange.length, postsInPrev.length)} />
-                      </div>
+                    {/* AI Weekly Brief — supplementary, at the bottom */}
+                    <Reveal>
+                      <GeminiInsightsPanel stats={summaryStats} />
                     </Reveal>
-
-                    {/* Analytics sections: Audience growth, engagement at a glance (kept in Content tab slice to avoid duplication) */}
 
                   </div>
                 )}

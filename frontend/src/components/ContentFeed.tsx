@@ -311,8 +311,6 @@ export function ContentFeed({
                 <SelectItem value="comments:asc">Comments: lowest to highest</SelectItem>
                 <SelectItem value="shares:desc">Shares: highest to lowest</SelectItem>
                 <SelectItem value="shares:asc">Shares: lowest to highest</SelectItem>
-                <SelectItem value="er:desc">Engagement rate: highest to lowest</SelectItem>
-                <SelectItem value="er:asc">Engagement rate: lowest to highest</SelectItem>
               </SelectContent>
             </Select>
 

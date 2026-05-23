@@ -14,9 +14,7 @@ async function run() {
     const snap = await db.collection('profilesnapshots').findOne({ profile_id: profile.id }, { sort: { captured_at: -1 } });
     if (snap && Array.isArray(snap.raw) && snap.raw.length > 0) {
       const first = snap.raw[0];
-      console.log('First post author:', JSON.stringify(first.author, null, 2));
-      console.log('First post company:', JSON.stringify(first.company, null, 2));
-      console.log('First post top-level keys:', Object.keys(first));
+      console.log('First post raw details:', JSON.stringify(first, null, 2));
     } else {
       console.log('No snapshot raw posts found.');
     }

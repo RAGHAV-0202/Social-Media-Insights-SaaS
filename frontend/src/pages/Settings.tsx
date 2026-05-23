@@ -533,10 +533,11 @@ export default function Settings() {
                         className="w-full p-2.5 bg-background border border-input rounded-md text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
                       >
                         <option value="manual">Manual Refresh Only</option>
-                        <option value="every_hour">Hourly Refresh</option>
-                        <option value="every_6_hours">Every 6 Hours</option>
-                        <option value="every_12_hours">Every 12 Hours</option>
-                        <option value="every_24_hours">Daily Refresh</option>
+                        <option value="every_12_hours">12hr</option>
+                        <option value="every_24_hours">1 day</option>
+                        <option value="every_2_days">2 days</option>
+                        <option value="every_3_days">3 days</option>
+                        <option value="every_7_days">7 days</option>
                       </select>
                     </div>
 

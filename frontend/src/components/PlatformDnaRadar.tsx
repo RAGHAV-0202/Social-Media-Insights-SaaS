@@ -260,8 +260,40 @@ export function PlatformDnaRadar({
                           <AnimatedNumber value={formatNumber(Math.round(r.avgEng))} />
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums"><AnimatedNumber value={formatNumber(r.views)} /></td>
-                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground"><AnimatedNumber value={formatNumber(Math.round(r.avgViews))} /></td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">
+                        {r.pl.id === "linkedin" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatNumber(r.views)} />
+                                <Info className="size-3 text-muted-foreground" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              LinkedIn post views (impressions) are private metrics and cannot be fetched via public scrapers.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatNumber(r.views)} />
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                        {r.pl.id === "linkedin" ? (
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help hover:text-foreground inline-flex items-center gap-1 justify-end w-full">
+                                <AnimatedNumber value={formatNumber(Math.round(r.avgViews))} />
+                                <Info className="size-3 text-muted-foreground/60" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              LinkedIn post views (impressions) are private metrics and cannot be fetched via public scrapers.
+                            </TooltipContent>
+                          </UITooltip>
+                        ) : (
+                          <AnimatedNumber value={formatNumber(Math.round(r.avgViews))} />
+                        )}
+                      </td>
                       <td className="py-2.5 px-3 text-right tabular-nums font-medium">
                         {r.pl.id === "youtube" ? (
                           <UITooltip>

@@ -109,7 +109,7 @@ export function AnalyticsSections({
       const v = byPlat.get(pl.id);
       const delta = v ? v.last - v.first : 0;
       const pct = v && v.first > 0 ? delta / v.first : 0;
-      return { platform: pl.label, color: pl.color, current: v?.last ?? 0, delta, pct };
+      return { platformId: pl.id, platform: pl.label, color: pl.color, icon: pl.icon, current: v?.last ?? 0, delta, pct };
     }).filter((d) => d.current > 0);
   }, [snapshots, profileMap, from, to]);
 
@@ -176,13 +176,25 @@ export function AnalyticsSections({
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
           {followerDeltas.map((d) => (
-            <Card key={d.platform} className="p-5 shadow-[var(--shadow-card)] flex flex-col justify-between">
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">{d.platform}</div>
+            <Card key={d.platformId} className="group relative isolate overflow-hidden p-5 shadow-[var(--shadow-card)] flex flex-col justify-between">
+              <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+                <div className="absolute inset-x-0 top-0 h-1 opacity-90" style={{ background: `linear-gradient(90deg, hsl(var(--${d.color})), hsl(var(--${d.color}) / 0.5))` }} />
+                <div className="absolute -top-12 -right-12 size-24 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity" style={{ background: `hsl(var(--${d.color}))` }} />
+              </div>
+              
+              <div className="relative">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="size-8 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: `linear-gradient(135deg, hsl(var(--${d.color})), hsl(var(--${d.color}) / 0.75))` }}>
+                    <d.icon className="size-3.5" />
+                  </div>
+                  <span className="text-xs font-semibold leading-tight">{d.platform}</span>
+                </div>
+                
                 <div className="text-2xl font-semibold mt-2 font-serif-display">{formatNumber(d.current)}</div>
                 <div className="text-[10px] text-muted-foreground/80 mt-0.5">Current Followers</div>
               </div>
-              <div className="mt-4">
+              
+              <div className="mt-4 relative">
                 <div className="text-[10px] text-muted-foreground/80 uppercase tracking-wider">Net Change</div>
                 <div className={cn(
                   "text-xs font-semibold mt-0.5",

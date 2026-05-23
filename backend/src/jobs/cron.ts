@@ -25,6 +25,9 @@ export function initCronJobs() {
           else if (freq === 'every_6_hours') requiredIntervalHours = 6;
           else if (freq === 'every_12_hours') requiredIntervalHours = 12;
           else if (freq === 'every_24_hours' || freq === 'daily') requiredIntervalHours = 24;
+          else if (freq === 'every_2_days') requiredIntervalHours = 48;
+          else if (freq === 'every_3_days') requiredIntervalHours = 72;
+          else if (freq === 'every_7_days') requiredIntervalHours = 168;
         } else {
           // If no custom API key, force 12 hours minimum
           requiredIntervalHours = 12;

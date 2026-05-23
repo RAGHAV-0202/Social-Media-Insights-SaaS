@@ -14,8 +14,9 @@ import {
   ArrowUpDown, ArrowUp, SlidersHorizontal, ChevronDown, Menu, LayoutDashboard, 
   Radio, FolderHeart, CalendarDays, TableProperties, Sparkles, RefreshCw, 
   TrendingUp, TrendingDown, Users, Eye, Heart, ExternalLink, MessageCircle, 
-  Share2, Play, X, BarChart3, ArrowRight, Download, FileText, Settings, LogOut, Loader2, CalendarIcon 
+  Share2, Play, X, BarChart3, ArrowRight, Download, FileText, Settings, LogOut, Loader2, CalendarIcon, Info 
 } from "lucide-react";
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow, subDays, addHours, startOfDay, endOfDay, differenceInCalendarDays } from "date-fns";
@@ -393,7 +394,7 @@ export default function Dashboard() {
       const v = byPlat.get(pl.id) || { first: 0, last: 0 };
       const delta = v.last - v.first;
       const pct = v.first > 0 ? delta / v.first : 0;
-      return { platform: pl.label, color: pl.color, current: v.last, delta, pct };
+      return { platformId: pl.id, platform: pl.label, color: pl.color, icon: pl.icon, current: v.last, delta, pct };
     }).filter((d) => d.current > 0);
   }, [filteredProfiles, followersAtFrom, followersAtTo]);
 
@@ -994,7 +995,6 @@ export default function Dashboard() {
                     <SelectItem value="likes:desc">Likes</SelectItem>
                     <SelectItem value="comments:desc">Comments</SelectItem>
                     <SelectItem value="shares:desc">Shares</SelectItem>
-                    <SelectItem value="er:desc">Engagement Rate</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -1164,13 +1164,25 @@ export default function Dashboard() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
                         {followerDeltas.map((d) => (
-                          <Card key={d.platform} className="p-5 shadow-[var(--shadow-card)] flex flex-col justify-between">
-                            <div>
-                              <div className="text-xs text-muted-foreground uppercase tracking-wider">{d.platform}</div>
+                          <Card key={d.platformId} className="group relative isolate overflow-hidden p-5 shadow-[var(--shadow-card)] flex flex-col justify-between hover:shadow-[var(--shadow-elegant)] hover:-translate-y-1 transition-all duration-300">
+                            <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+                              <div className="absolute inset-x-0 top-0 h-1 opacity-90" style={{ background: `linear-gradient(90deg, hsl(var(--${d.color})), hsl(var(--${d.color}) / 0.5))` }} />
+                              <div className="absolute -top-12 -right-12 size-24 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity" style={{ background: `hsl(var(--${d.color}))` }} />
+                            </div>
+                            
+                            <div className="relative">
+                              <div className="flex items-center gap-2.5 mb-3">
+                                <div className="size-8 rounded-lg flex items-center justify-center text-white shadow-sm" style={{ background: `linear-gradient(135deg, hsl(var(--${d.color})), hsl(var(--${d.color}) / 0.75))` }}>
+                                  <d.icon className="size-3.5" />
+                                </div>
+                                <span className="text-xs font-semibold leading-tight">{d.platform}</span>
+                              </div>
+                              
                               <div className="text-2xl font-semibold mt-2 font-serif-display">{formatNumber(d.current)}</div>
                               <div className="text-[10px] text-muted-foreground/80 mt-0.5">Current Followers</div>
                             </div>
-                            <div className="mt-4">
+                            
+                            <div className="mt-4 relative">
                               <div className="text-[10px] text-muted-foreground/80 uppercase tracking-wider">Net Change</div>
                               <div className={cn(
                                 "text-xs font-semibold mt-0.5",
@@ -1268,7 +1280,22 @@ export default function Dashboard() {
                                 })()}
                                 <Stat label="Posts" value={String(platformPosts.length)} sub={rangeLabel} />
                                 {engagementMetricsOn && <Stat label="Engage" value={formatNumber(eng)} sub={rangeLabel} />}
-                                {metrics.views && <Stat label="Views" value={formatNumber(views)} sub={rangeLabel} />}
+                                {metrics.views && (
+                                  pl.id === "linkedin" ? (
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="cursor-help hover:opacity-80 transition-opacity">
+                                          <Stat label="Views" value={formatNumber(views)} sub="Private metric" />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        LinkedIn post views (impressions) are private metrics and cannot be fetched via public scrapers.
+                                      </TooltipContent>
+                                    </UITooltip>
+                                  ) : (
+                                    <Stat label="Views" value={formatNumber(views)} sub={rangeLabel} />
+                                  )
+                                )}
                               </div>
                             </Card>
                           );

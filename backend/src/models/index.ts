@@ -81,6 +81,7 @@ const refreshRunSchema = new mongoose.Schema({
   profiles_updated: { type: Number, default: 0 },
   posts_upserted: { type: Number, default: 0 },
   errors: { type: mongoose.Schema.Types.Mixed },
+  progress: { type: mongoose.Schema.Types.Mixed, default: {} },
 });
 
 export const RefreshRunModel = mongoose.model('RefreshRun', refreshRunSchema);

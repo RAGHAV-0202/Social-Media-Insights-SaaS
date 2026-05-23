@@ -541,23 +541,7 @@ export default function Settings() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-muted-foreground">Historical Ingestion Limit (per account)</label>
-                      <select
-                        value={apifyLimit}
-                        onChange={(e) => setApifyLimit(Number(e.target.value))}
-                        disabled={!isKeyVerified}
-                        className="w-full p-2.5 bg-background border border-input rounded-md text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-                      >
-                        <option value={5}>Last 5 posts</option>
-                        <option value={15}>Last 15 posts</option>
-                        <option value={25}>Last 25 posts (Default)</option>
-                        <option value={50}>Last 50 posts</option>
-                      </select>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        This is the number of posts fetched per sync. Choose a higher limit only if you post more than the lower limit between syncs, as fetching more posts will cost more.
-                      </p>
-                    </div>
+
                   </div>
                 </div>
               </div>

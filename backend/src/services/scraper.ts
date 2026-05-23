@@ -548,6 +548,25 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
         if (rawPostedAt && typeof rawPostedAt === 'object' && !(rawPostedAt instanceof Date)) {
           postedAtVal = rawPostedAt.timestamp ?? rawPostedAt.date ?? rawPostedAt.relative;
         }
+        const likes = num(
+          t.stats?.total_reactions ?? t.stats?.like ?? t.stats?.likes ?? t.stats?.numLikes ?? t.stats?.likeCount ?? t.numLikes ?? t.likes ?? t.reactions ?? t.reactionCount
+        );
+        const comments = num(
+          t.stats?.comments ?? t.stats?.numComments ?? t.stats?.commentCount ?? t.numComments ?? t.comments ?? 0
+        );
+        const shares = num(
+          t.stats?.reposts ?? t.stats?.shares ?? t.stats?.numShares ?? t.stats?.shareCount ?? t.numShares ?? t.shares ?? 0
+        );
+        let views = num(
+          t.stats?.views ?? t.stats?.viewCount ?? t.views ?? 0
+        );
+
+        if (views === 0 && (likes > 0 || comments > 0 || shares > 0)) {
+          // LinkedIn public scrapers usually don't return views. 
+          // Estimate views based on a typical ~3% engagement rate
+          views = (likes * 30) + (comments * 50) + (shares * 80);
+        }
+
         return {
           external_id: extId,
           posted_at: safeDate(postedAtVal ?? t.createdAt ?? t.publishedAt ?? t.postedAtISO),
@@ -558,18 +577,10 @@ async function fetchPlatform(p: Profile, token: string, limit = 25): Promise<Nor
           ) ?? null,
           caption: t.text ?? t.commentary ?? t.description ?? t.body ?? "",
           media_type: t.media?.type ?? t.post_type ?? (t.image ? "image" : (t.video ? "video" : "text")),
-          likes: num(
-            t.stats?.total_reactions ?? t.stats?.like ?? t.stats?.likes ?? t.stats?.numLikes ?? t.stats?.likeCount ?? t.numLikes ?? t.likes ?? t.reactions ?? t.reactionCount
-          ),
-          comments: num(
-            t.stats?.comments ?? t.stats?.numComments ?? t.stats?.commentCount ?? t.numComments ?? t.comments ?? 0
-          ),
-          shares: num(
-            t.stats?.reposts ?? t.stats?.shares ?? t.stats?.numShares ?? t.stats?.shareCount ?? t.numShares ?? t.shares ?? 0
-          ),
-          views: num(
-            t.stats?.views ?? t.stats?.viewCount ?? t.views ?? 0
-          ),
+          likes,
+          comments,
+          shares,
+          views,
           raw: t,
         };
       });
@@ -666,16 +677,7 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
   let runId: string | null = null;
   
   try {
-    // 1. Create run record
-    const run = await RefreshRunModel.create({
-      workspace_id: workspaceId,
-      triggered_by: triggeredBy,
-      status: 'running',
-      started_at: new Date(),
-    });
-    runId = run.id;
-
-    // 2. Fetch profiles & Workspace API Key
+    // 1. Fetch profiles & Workspace API Key
     const rawProfiles = await ProfileModel.find({ workspace_id: workspaceId });
     const profiles: Profile[] = [];
     
@@ -716,6 +718,23 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
     if (targetProfileId) {
       filteredProfiles = filteredProfiles.filter(p => p.id === targetProfileId);
     }
+
+    // 2. Initialize progress object
+    const progress: Record<string, { status: 'pending' | 'running' | 'success' | 'failed', error?: string }> = {};
+    for (const p of filteredProfiles) {
+      progress[p.platform] = { status: 'pending' };
+    }
+
+    // 3. Create run record
+    const run = await RefreshRunModel.create({
+      workspace_id: workspaceId,
+      triggered_by: triggeredBy,
+      status: 'running',
+      started_at: new Date(),
+      progress,
+    });
+    runId = run.id;
+
     const workspace = await WorkspaceModel.findById(workspaceId).lean();
     
     // Resolve Token: Priority 1: User's custom key, Priority 2: System global key
@@ -731,6 +750,26 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
     // Run sequentially to avoid Apify concurrency issues
     for (const p of filteredProfiles) {
       try {
+        // Check if run was cancelled
+        const currentRun = await RefreshRunModel.findOne({ id: runId }).lean();
+        if (!currentRun || currentRun.status === 'failed') {
+          console.log(`[runScraperSync] Run ${runId} was cancelled by user. Terminating scraper loop.`);
+          return {
+            run_id: runId,
+            status: 'failed',
+            profiles_updated: updated,
+            posts_upserted: postsTotal,
+            errors: { ...errors, global: 'Sync manually cancelled by user' }
+          };
+        }
+
+        // Update progress state to running
+        progress[p.platform] = { status: 'running' };
+        await RefreshRunModel.updateOne(
+          { id: runId },
+          { $set: { progress } }
+        );
+
         // Check if there are any existing snapshots for this profile to detect first-time sync
         const snapshotCount = await ProfileSnapshotModel.countDocuments({ profile_id: p.id });
         const isFirstSync = snapshotCount === 0;
@@ -747,9 +786,23 @@ export async function runScraperSync(triggeredBy = 'manual', workspaceId: string
         const r = await refreshOne(p, activeToken, profileLimit);
         postsTotal += r.posts_upserted;
         updated += 1;
+
+        // Update progress state to success
+        progress[p.platform] = { status: 'success' };
+        await RefreshRunModel.updateOne(
+          { id: runId },
+          { $set: { progress } }
+        );
       } catch (e) {
         console.error(`[${p.platform}] failed:`, e);
         errors[p.platform] = (e as Error).message;
+
+        // Update progress state to failed
+        progress[p.platform] = { status: 'failed', error: (e as Error).message };
+        await RefreshRunModel.updateOne(
+          { id: runId },
+          { $set: { progress } }
+        );
       }
     }
 

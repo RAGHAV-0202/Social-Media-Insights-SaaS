@@ -58,6 +58,40 @@ router.post('/refresh-social', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST /api/refresh-social/cancel
+router.post('/refresh-social/cancel', async (req: AuthRequest, res: Response) => {
+  try {
+    const workspaceId = req.headers['x-workspace-id'] as string;
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'x-workspace-id header is required' });
+    }
+
+    const activeRun = await RefreshRunModel.findOne({
+      workspace_id: workspaceId,
+      status: 'running'
+    }).sort({ started_at: -1 });
+
+    if (activeRun) {
+      await RefreshRunModel.updateOne(
+        { _id: activeRun._id },
+        {
+          $set: {
+            status: 'failed',
+            finished_at: new Date(),
+            errors: { global: 'Sync manually cancelled by user' }
+          }
+        }
+      );
+      res.json({ success: true, message: 'Active sync cancelled successfully' });
+    } else {
+      res.json({ success: true, message: 'No active sync found to cancel' });
+    }
+  } catch (error) {
+    console.error('Error cancelling refresh-social run:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // POST /api/weekly-summary
 router.post('/weekly-summary', async (req: AuthRequest, res: Response) => {
   try {

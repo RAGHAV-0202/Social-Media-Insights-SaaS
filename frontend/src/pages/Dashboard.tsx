@@ -11,10 +11,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  ArrowUpDown, ArrowUp, SlidersHorizontal, ChevronDown, Menu, LayoutDashboard, 
+  ArrowUp, SlidersHorizontal, ChevronDown, Menu, LayoutDashboard, 
   Radio, FolderHeart, CalendarDays, TableProperties, Sparkles, RefreshCw, 
   TrendingUp, TrendingDown, Users, Eye, Heart, ExternalLink, MessageCircle, 
-  Share2, Play, X, BarChart3, ArrowRight, Download, FileText, Settings, LogOut, Loader2, CalendarIcon, Info 
+  Share2, Play, X, BarChart3, ArrowRight, Download, FileText, Settings, LogOut, Loader2, CalendarIcon, Info,
+  CheckCircle2, XCircle, AlertCircle
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
@@ -157,6 +158,13 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
+    refetchInterval: (query) => {
+      const lastRun = query.state.data?.lastRun;
+      if (lastRun && lastRun.status === 'running') {
+        return 3000;
+      }
+      return false;
+    },
   });
 
   const profiles = dashboardQuery.data?.profiles ?? [];
@@ -172,6 +180,39 @@ export default function Dashboard() {
   };
 
   const [refreshingNow, setRefreshingNow] = useState(false);
+  const [cancellingSync, setCancellingSync] = useState(false);
+  
+  const handleCancelSync = async () => {
+    setCancellingSync(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${baseUrl}/api/refresh-social/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-workspace-id': workspace?.id || ''
+        }
+      });
+      if (res.ok) {
+        toast({
+          title: "Sync Cancelled",
+          description: "The active sync run was cancelled.",
+        });
+        loadAll();
+      } else {
+        throw new Error('Failed to cancel sync.');
+      }
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: (e as Error).message || "Failed to cancel sync",
+      });
+    } finally {
+      setCancellingSync(false);
+    }
+  };
+
   const handleRefresh = async (profileId?: string) => {
     setRefreshingNow(true);
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -982,22 +1023,6 @@ export default function Dashboard() {
                   </SelectContent>
                 </Select>
 
-                {/* Sort selector */}
-                <Select value={globalSort} onValueChange={(v) => setGlobalSort(v as GlobalSort)}>
-                  <SelectTrigger className="h-9 w-[120px] rounded-xl border-border/60 text-xs font-semibold bg-card text-foreground" aria-label="Sort">
-                    <ArrowUpDown className="size-3.5 text-muted-foreground mr-1.5" />
-                    <SelectValue placeholder="Sort" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="posted_at:desc">Newest first</SelectItem>
-                    <SelectItem value="posted_at:asc">Oldest first</SelectItem>
-                    <SelectItem value="views:desc">Views</SelectItem>
-                    <SelectItem value="likes:desc">Likes</SelectItem>
-                    <SelectItem value="comments:desc">Comments</SelectItem>
-                    <SelectItem value="shares:desc">Shares</SelectItem>
-                  </SelectContent>
-                </Select>
-
                 {/* Ingestion & Export triggers */}
                 <div className="flex items-center bg-muted/40 border border-border/60 p-0.5 rounded-xl">
                   <DropdownMenu>
@@ -1056,6 +1081,16 @@ export default function Dashboard() {
 
           {/* Main workspace scroll view */}
           <main className="flex-grow p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-8 animate-fade-in-up">
+            
+            {/* Sync Progress Widget */}
+            {lastRun?.status === 'running' && (
+              <SyncProgressWidget 
+                lastRun={lastRun} 
+                profiles={profiles} 
+                onCancel={handleCancelSync} 
+                cancelling={cancellingSync} 
+              />
+            )}
             
             {/* Top-level empty / error states */}
             {loadError && (
@@ -1834,6 +1869,86 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
       <div className="font-semibold text-sm mt-0.5"><AnimatedValue value={value} /></div>
       {sub && <div className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">{sub}</div>}
     </div>
+  );
+}
+
+function SyncProgressWidget({ 
+  lastRun, 
+  profiles, 
+  onCancel, 
+  cancelling 
+}: { 
+  lastRun: any; 
+  profiles: any[]; 
+  onCancel: () => void; 
+  cancelling: boolean; 
+}) {
+  const progressMap = lastRun.progress || {};
+  const entries = Object.entries(progressMap);
+  const total = entries.length;
+  
+  if (total === 0) return null;
+  
+  const completed = entries.filter(([_, val]: [string, any]) => val.status === 'success' || val.status === 'failed').length;
+  const percent = Math.round((completed / total) * 100);
+
+  return (
+    <Card className="bg-card/70 backdrop-blur-md border border-border/60 p-5 rounded-2xl shadow-[var(--shadow-card)] space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="space-y-0.5">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <RefreshCw className="size-4 animate-spin text-primary" />
+            Syncing social channels...
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Updating metrics and downloading latest posts ({completed}/{total} completed)
+          </p>
+        </div>
+        <Button 
+          variant="destructive" 
+          size="sm" 
+          onClick={onCancel}
+          disabled={cancelling}
+          className="h-8 text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white rounded-lg flex items-center gap-1.5 self-start sm:self-center"
+        >
+          {cancelling ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
+          Cancel Sync
+        </Button>
+      </div>
+
+      <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/20">
+        <div 
+          className="bg-primary h-full transition-all duration-500 rounded-full" 
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        {PLATFORMS.map((pl) => {
+          const isConfigured = profiles.some(p => p.platform === pl.id);
+          if (!isConfigured) return null;
+
+          const state = progressMap[pl.id] || { status: 'pending' };
+          const Icon = pl.icon;
+
+          return (
+            <div key={pl.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border/40 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex size-6 items-center justify-center rounded text-white"
+                  style={{ background: `hsl(var(--${pl.color}))` }}>
+                  <Icon className="size-3" />
+                </span>
+                <span className="text-xs font-semibold">{pl.label}</span>
+              </div>
+              {state.status === 'pending' && <span className="size-2 rounded-full bg-muted-foreground/40" title="Pending" />}
+              {state.status === 'running' && <Loader2 className="size-3 text-primary animate-spin" />}
+              {state.status === 'success' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
+              {state.status === 'failed' && <XCircle className="size-3.5 text-rose-500" title={state.error} />}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
